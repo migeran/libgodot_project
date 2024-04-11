@@ -1,0 +1,12 @@
+[submodule "godot"]
+	path = godot
+	url = ../godot
+[submodule "SwiftGodot"]
+	path = SwiftGodot
+	url = ../SwiftGodot
+[submodule "SwiftGodotKit"]
+	path = SwiftGodotKit
+	url = ../SwiftGodotKit
+[submodule "godot-cpp"]
+	path = godot-cpp
+	url = ../godot-cpp
