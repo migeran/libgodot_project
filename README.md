@@ -35,8 +35,11 @@ git clone --recursive https://github.com/migeran/libgodot_project
 
 cd libgodot_project
 
-# Build for the host platform (Mac and Linux)
+# Build for Mac and Linux
 ./build_libgodot.sh
+
+# Or build for Windows
+build_libgodot.bat
 
 # Build for iOS (Mac only)
 ./build_libgodot.sh --target ios 
@@ -48,12 +51,23 @@ The C++ sample shows how Godot can be controlled by a host process, by displayin
 
 After libgodot is compiled successfully, run the following commands to test the C++ sample:
 
+On Linux and MacOS:
 ```
 cd samples/cpp_sample
 mkdir build
 cmake -S . -B build
 cd build
 ./sample
+```
+
+On Windows:
+```
+cd samples/cpp_sample
+mkdir build
+cmake -S . -B build -G Ninja
+cd build
+ninja
+sample.exe
 ```
 
 ### SwiftUI Sample
