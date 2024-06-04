@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include <gdextension_interface.h>
+#include <libgodot.h>
 
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
@@ -52,8 +52,15 @@ public:
             fprintf(stderr, "Error opening libgodot: %s\n", dlerror());
             return;
         }
-        *(void**)(&func_gdextension_create_godot_instance) = dlsym(handle, "gdextension_create_godot_instance");
-        if (func_gdextension_create_godot_instance == nullptr) {
+        *(void**)(&func_libgodot_create_godot_instance) = dlsym(handle, "libgodot_create_godot_instance");
+        if (func_libgodot_create_godot_instance == nullptr) {
+            fprintf(stderr, "Error acquiring function: %s\n", dlerror());
+            dlclose(handle);
+            handle == nullptr;
+            return;
+        }
+        *(void**)(&func_libgodot_destroy_godot_instance) = dlsym(handle, "libgodot_destroy_godot_instance");
+        if (func_libgodot_destroy_godot_instance == nullptr) {
             fprintf(stderr, "Error acquiring function: %s\n", dlerror());
             dlclose(handle);
             handle == nullptr;
@@ -68,23 +75,29 @@ public:
     }
 
     bool is_open() {
-        return handle != nullptr && func_gdextension_create_godot_instance != nullptr;
+        return handle != nullptr && func_libgodot_create_godot_instance != nullptr;
     }
 
     godot::GodotInstance *create_godot_instance(int p_argc, char *p_argv[], GDExtensionInitializationFunction p_init_func = gdextension_default_init) {
         if (!is_open()) {
             return nullptr;
         }
-        GDExtensionObjectPtr instance = func_gdextension_create_godot_instance(p_argc, p_argv, p_init_func);
+        GDExtensionObjectPtr instance = func_libgodot_create_godot_instance(p_argc, p_argv, p_init_func);
         if (instance == nullptr) {
             return nullptr;
         }
         return reinterpret_cast<godot::GodotInstance *>(godot::internal::get_object_instance_binding(instance));
     }
 
+    void destroy_godot_instance(godot::GodotInstance* instance) {
+        GDExtensionObjectPtr obj = godot::internal::gdextension_interface_object_get_instance_from_id(instance->get_instance_id());
+        func_libgodot_destroy_godot_instance(obj);
+    }
+
 private:
     void *handle = nullptr;
-    GDExtensionObjectPtr (*func_gdextension_create_godot_instance)(int, char *[], GDExtensionInitializationFunction) = nullptr;
+    GDExtensionObjectPtr (*func_libgodot_create_godot_instance)(int, char *[], GDExtensionInitializationFunction) = nullptr;
+    void (*func_libgodot_destroy_godot_instance)(GDExtensionObjectPtr) = nullptr;
 };
 
 int main(int argc, char **argv) {
@@ -95,7 +108,7 @@ int main(int argc, char **argv) {
     if (argc > 0) {
         program = std::string(argv[0]);
     }
-    std::vector<std::string> args = { program, "--path", "../../project/" };
+    std::vector<std::string> args = { program, "--path", "../../project/", "--rendering-method", "gl_compatibility", "--rendering-driver", "opengl3" };
 
     std::vector<char*> argvs;
     for (const auto& arg : args) {
@@ -111,7 +124,7 @@ int main(int argc, char **argv) {
 
     instance->start();
     while (!instance->iteration()) {}
-    instance->shutdown();
+    libgodot.destroy_godot_instance(instance);
 
     return EXIT_SUCCESS;
 }
