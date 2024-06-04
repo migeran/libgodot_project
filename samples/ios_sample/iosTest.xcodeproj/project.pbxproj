@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		4009A2932BC608480066C885 /* SwiftGodotKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4009A2922BC608480066C885 /* SwiftGodotKit */; };
+		4041CDDD2C16837600400A0A /* game.pck in Resources */ = {isa = PBXBuildFile; fileRef = 4041CDDC2C16837600400A0A /* game.pck */; };
 		63091EA02BA0B27300576D34 /* main.pck in Resources */ = {isa = PBXBuildFile; fileRef = 63091E9F2BA0B27300576D34 /* main.pck */; };
 		633CF6A02B9EFEE1000461C9 /* iosTestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 633CF69F2B9EFEE1000461C9 /* iosTestApp.swift */; };
 		633CF6A22B9EFEE1000461C9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 633CF6A12B9EFEE1000461C9 /* ContentView.swift */; };
@@ -38,6 +39,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		4041CDDC2C16837600400A0A /* game.pck */ = {isa = PBXFileReference; lastKnownFileType = file; path = game.pck; sourceTree = "<group>"; };
 		63091E9F2BA0B27300576D34 /* main.pck */ = {isa = PBXFileReference; lastKnownFileType = file; path = main.pck; sourceTree = "<group>"; };
 		633CF69C2B9EFEE1000461C9 /* iosTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		633CF69F2B9EFEE1000461C9 /* iosTestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iosTestApp.swift; sourceTree = "<group>"; };
@@ -106,6 +108,7 @@
 		633CF69E2B9EFEE1000461C9 /* iosTest */ = {
 			isa = PBXGroup;
 			children = (
+				4041CDDC2C16837600400A0A /* game.pck */,
 				63091E9F2BA0B27300576D34 /* main.pck */,
 				633CF69F2B9EFEE1000461C9 /* iosTestApp.swift */,
 				633CF6A12B9EFEE1000461C9 /* ContentView.swift */,
@@ -263,6 +266,7 @@
 			files = (
 				63091EA02BA0B27300576D34 /* main.pck in Resources */,
 				633CF6A72B9EFEE3000461C9 /* Preview Assets.xcassets in Resources */,
+				4041CDDD2C16837600400A0A /* game.pck in Resources */,
 				633CF6A42B9EFEE3000461C9 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -454,7 +458,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"iosTest/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = CVQ7CHHHZY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "";
@@ -489,7 +493,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"iosTest/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = CVQ7CHHHZY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "";

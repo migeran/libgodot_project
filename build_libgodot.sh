@@ -21,7 +21,7 @@ lib_suffix="so"
 host_debug=1
 debug=1
 force_host_rebuild=0
-force_regenerate=0
+update_api=0
 
 case "$host_system" in
     Linux)
@@ -51,18 +51,25 @@ do
         --host-debug)
             host_debug=1
         ;;        
-        --regenerate)
-            force_regenerate=1
+        --host-release)
+            host_debug=0
+        ;;
+        --update-api)
+            update_api=1
+            force_host_rebuild=1
         ;;
         --debug)
             debug=1
+        ;;
+        --release)
+            debug=0
         ;;
         --target)
             shift
             target_platform="${1:-}"
         ;;
         *)
-            echo "Usage: $0 [--host-debug] [--host-rebuild] [--debug] [--regenerate] --target <target platform>"
+            echo "Usage: $0 [--host-debug] [--host-rebuild] [--host-debug] [--host-release] [--debug] [--release] [--update-api] [--target <target platform>]"
             exit 1
         ;;
     esac
@@ -72,7 +79,7 @@ done
 if [ "$target_platform" = "ios" ]
 then
     target_arch="arm64"
-    target="template_debug"
+    target="template_release"
     lib_suffix="a"
 fi
 
@@ -97,6 +104,10 @@ if [ $debug -eq 1 ]
 then
     target_build_options="$target_build_options dev_build=yes"
     target_godot_suffix="$target_godot_suffix.dev"
+    if [ "$target_platform" = "ios" ]
+    then
+        target="template_debug"
+    fi
 fi
 
 target_godot_suffix="$target_godot_suffix.$target_arch"
@@ -113,22 +124,26 @@ fi
 
 mkdir -p $BUILD_DIR
 
-if [ ! -f $BUILD_DIR/extension_api.json ] || [ $force_regenerate -eq 1 ]
+if [ $update_api -eq 1 ]
 then
     cd $BUILD_DIR
     $host_godot --dump-extension-api
+    cp -v $BUILD_DIR/extension_api.json $GODOT_CPP_DIR/gdextension/
+    cp -v $GODOT_DIR/core/extension/gdextension_interface.h $GODOT_CPP_DIR/gdextension/
+    cp -v $GODOT_DIR/core/extension/libgodot.h $GODOT_CPP_DIR/gdextension/
+    cp -v $BUILD_DIR/extension_api.json $SWIFT_GODOT_DIR/Sources/ExtensionApi/
+    cp -v $GODOT_DIR/core/extension/gdextension_interface.h $SWIFT_GODOT_DIR/Sources/GDExtension/include/
+    cp -v $GODOT_DIR/core/extension/libgodot.h $SWIFT_GODOT_DIR/Sources/GDExtension/include/
+
+    echo "Successfully updated the GDExtension API."
+    exit 0
 fi
 
 cd $GODOT_DIR
 scons p=$target_platform target=$target $target_build_options library_type=shared_library
 cp -v $target_godot $BUILD_DIR/libgodot.$lib_suffix
 
-cp -v $BUILD_DIR/extension_api.json $GODOT_CPP_DIR/gdextension/
-cp -v $GODOT_DIR/core/extension/gdextension_interface.h $GODOT_CPP_DIR/gdextension/
-
 if [ "$target_platform" = "ios" ]
 then
-    $SWIFT_GODOT_DIR/scripts/make-libgodot.framework $GODOT_DIR $BUILD_DIR
-    cp -v $BUILD_DIR/extension_api.json $SWIFT_GODOT_DIR/Sources/ExtensionApi/
-    cp -v $GODOT_DIR/core/extension/gdextension_interface.h $SWIFT_GODOT_DIR/Sources/GDExtension/include/
+    $SWIFT_GODOT_DIR/scripts/make-libgodot.framework $GODOT_DIR $BUILD_DIR $target
 fi
