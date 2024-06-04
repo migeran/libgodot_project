@@ -4,10 +4,38 @@ import SwiftGodotKit
 import SwiftGodot
 
 class GodotApp: ObservableObject {
+    let maxTouchCount = 32
+    var touches: [UITouch?] = []
+    
     @Published var instance: GodotInstance?
     
     func createInstance(scene: String) {
+        touches = [UITouch?](repeating: nil, count: maxTouchCount)
         instance = GodotInstance.create(args: ["--main-pack", (Bundle.main.resourcePath ?? ".") + "/" + scene, "--rendering-driver", "vulkan", "--rendering-method", "mobile", "--display-driver", "embedded"])
+    }
+    
+    func getTouchId(touch: UITouch) -> Int {
+        var first = -1
+        for i in 0 ... maxTouchCount - 1 {
+            if first == -1 && touches[i] == nil {
+                first = i;
+                continue;
+            }
+            if (touches[i] == touch) {
+                return i;
+            }
+        }
+
+        if (first != -1) {
+            touches[first] = touch;
+            return first;
+        }
+
+        return -1;
+    }
+
+    func removeTouchId(id: Int) {
+        touches[id] = nil
     }
 }
 
@@ -46,7 +74,9 @@ class UIGodotAppView : UIView {
     
     private func commonInit() {
         renderingLayer = CAMetalLayer()
-        renderingLayer.frame.size = CGSize(width: 2000, height: 2000)
+        let size = max(UIScreen.main.bounds.size.width, UIScreen.main.bounds.size.height)
+        renderingLayer.frame.size = CGSize(width: size, height: size)
+        renderingLayer.contentsScale = self.contentScaleFactor
         
         layer.addSublayer(renderingLayer)
     }
@@ -61,9 +91,9 @@ class UIGodotAppView : UIView {
             if instance.isStarted() {
                 if embedded == nil {
                     embedded = DisplayServerEmbedded(nativeHandle: DisplayServer.shared.handle)
-                    //embedded.setContentScale(UIScreen.main.scale)
                 }
-                embedded.resizeWindow(size: Vector2i(x: Int32(self.bounds.size.width), y: Int32(self.bounds.size.height)), id: Int32(DisplayServer.mainWindowId))
+                
+                embedded.resizeWindow(size: Vector2i(x: Int32(self.bounds.size.width * self.contentScaleFactor), y: Int32(self.bounds.size.height * self.contentScaleFactor)), id: Int32(DisplayServer.mainWindowId))
             }
         }
         super.layoutSubviews()
@@ -80,13 +110,142 @@ class UIGodotAppView : UIView {
             }
         }
     }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let contentsScale = renderingLayer.contentsScale
+        if let instance = app?.instance {
+            
+            var touchData: [[String : Any]] = []
+            for touch in touches {
+                let touchId = app!.getTouchId(touch: touch)
+                if touchId == -1 {
+                    continue
+                }
+                var location = touch.location(in: self)
+                if !self.layer.frame.contains(location) {
+                    continue
+                }
+                location.x -= self.renderingLayer.frame.origin.x
+                location.y -= self.renderingLayer.frame.origin.y
+                let tapCount = touch.tapCount
+                touchData.append([ "touchId": touchId, "location": location, "tapCount": tapCount ])
+            }
+            {
+                let windowId = Int32(DisplayServer.mainWindowId)
+                for touch in touchData {
+                    let touchId = touch["touchId"] as! Int
+                    let location = touch["location"] as! CGPoint
+                    let tapCount = touch["tapCount"] as! Int
+                    (DisplayServer.shared as! DisplayServerEmbedded).touchPress(idx: Int32(touchId), x: Int32(location.x * contentsScale), y: Int32(location.y * contentsScale), pressed: true, doubleClick: tapCount > 1, window: windowId)
+                }
+            }()
+        }
+    }
     
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let contentsScale = renderingLayer.contentsScale
+        if let instance = app?.instance {
+            
+            var touchData: [[String : Any]] = []
+            for touch in touches {
+                let touchId = app!.getTouchId(touch: touch)
+                if touchId == -1 {
+                    continue
+                }
+                var location = touch.location(in: self)
+                if !self.layer.frame.contains(location) {
+                    continue
+                }
+                location.x -= self.renderingLayer.frame.origin.x
+                location.y -= self.renderingLayer.frame.origin.y
+                var prevLocation = touch.previousLocation(in: self)
+                if !self.layer.frame.contains(prevLocation) {
+                    continue
+                }
+                prevLocation.x -= self.renderingLayer.frame.origin.x
+                prevLocation.y -= self.renderingLayer.frame.origin.y
+                let alt = touch.altitudeAngle
+                let azim = touch.azimuthUnitVector(in: self)
+                let force = touch.force
+                let maximumPossibleForce = touch.maximumPossibleForce
+                touchData.append([ "touchId": touchId, "location": location, "prevLocation": prevLocation, "alt": alt, "azim": azim, "force": force, "maximumPossibleForce": maximumPossibleForce ])
+            }
+            
+            {
+                let windowId = Int32(DisplayServer.mainWindowId)
+                for touch in touchData {
+                    let touchId = touch["touchId"] as! Int
+                    let location = touch["location"] as! CGPoint
+                    let prevLocation = touch["prevLocation"] as! CGPoint
+                    let alt = touch["alt"] as! CGFloat
+                    let azim = touch["azim"] as! CGVector
+                    let force = touch["force"] as! CGFloat
+                    let maximumPossibleForce = touch["maximumPossibleForce"] as! CGFloat
+                    (DisplayServer.shared as! DisplayServerEmbedded).touchDrag(idx: Int32(touchId), prevX: Int32(prevLocation.x  * contentsScale), prevY: Int32(prevLocation.y  * contentsScale), x: Int32(location.x * contentsScale), y: Int32(location.y * contentsScale), pressure: Double(force) / Double(maximumPossibleForce), tilt: Vector2(x: Float(azim.dx) * Float(cos(alt)), y: Float(azim.dy) * cos(Float(alt))), window: windowId)
+                }
+            }()
+        }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let contentsScale = renderingLayer.contentsScale
+        if let instance = app?.instance {
+            
+            var touchData: [[String : Any]] = []
+            for touch in touches {
+                let touchId = app!.getTouchId(touch: touch)
+                if touchId == -1 {
+                    continue
+                }
+                app!.removeTouchId(id: touchId)
+                var location = touch.location(in: self)
+                if !self.layer.frame.contains(location) {
+                    continue
+                }
+                location.x -= self.renderingLayer.frame.origin.x
+                location.y -= self.renderingLayer.frame.origin.y
+                touchData.append([ "touchId": touchId, "location": location ])
+            }
+            
+            {
+                let windowId = Int32(DisplayServer.mainWindowId)
+                for touch in touchData {
+                    let touchId = touch["touchId"] as! Int
+                    let location = touch["location"] as! CGPoint
+                    (DisplayServer.shared as! DisplayServerEmbedded).touchPress(idx: Int32(touchId), x: Int32(location.x * contentsScale), y: Int32(location.y * contentsScale), pressed: false, doubleClick: false, window: windowId)
+                }
+            }()
+        }
+    }
+    
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let instance = app?.instance {
+            
+            var touchData: [[String : Any]] = []
+            for touch in touches {
+                let touchId = app!.getTouchId(touch: touch)
+                if touchId == -1 {
+                    continue
+                }
+                app!.removeTouchId(id: touchId)
+                touchData.append([ "touchId": touchId ])
+            }
+
+            {
+                let windowId = Int32(DisplayServer.mainWindowId)
+                for touch in touchData {
+                    let touchId = touch["touchId"] as! Int
+                    (DisplayServer.shared as! DisplayServerEmbedded).touchesCanceled(idx: Int32(touchId), window: windowId)
+                }
+            }()
+        }
+    }
+
     override func removeFromSuperview() {
         displayLink?.invalidate()
         displayLink = nil
         
         if let instance = app?.instance {
-            instance.shutdown()
             GodotInstance.destroy(instance: instance)
         }
     }
@@ -147,7 +306,9 @@ class UIGodotWindow : UIView {
     
     private func commonInit() {
         windowLayer = CAMetalLayer()
-        windowLayer.frame.size = CGSize(width: 500, height: 500)
+        let size = max(UIScreen.main.bounds.size.width, UIScreen.main.bounds.size.height)
+        windowLayer.frame.size = CGSize(width: size, height: size)
+        windowLayer.contentsScale = self.contentScaleFactor
         windowLayer.backgroundColor = CGColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)
         layer.addSublayer(windowLayer)
     }
@@ -177,6 +338,137 @@ class UIGodotWindow : UIView {
             }
         }
     }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let contentsScale = windowLayer.contentsScale
+        if let instance = app?.instance {
+            
+            var touchData: [[String : Any]] = []
+            for touch in touches {
+                let touchId = app!.getTouchId(touch: touch)
+                if touchId == -1 {
+                    continue
+                }
+                var location = touch.location(in: self)
+                if !self.layer.frame.contains(location) {
+                    continue
+                }
+                location.x -= self.windowLayer.frame.origin.x
+                location.y -= self.windowLayer.frame.origin.y
+                let tapCount = touch.tapCount
+                touchData.append([ "touchId": touchId, "location": location, "tapCount": tapCount ])
+            }
+            {
+                let windowId = subwindow?.getWindowId() ?? Int32(DisplayServer.mainWindowId)
+                for touch in touchData {
+                    let touchId = touch["touchId"] as! Int
+                    let location = touch["location"] as! CGPoint
+                    let tapCount = touch["tapCount"] as! Int
+                    (DisplayServer.shared as! DisplayServerEmbedded).touchPress(idx: Int32(touchId), x: Int32(location.x * contentsScale), y: Int32(location.y * contentsScale), pressed: true, doubleClick: tapCount > 1, window: windowId)
+                }
+            }()
+        }
+    }
+    
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let contentsScale = windowLayer.contentsScale
+        if let instance = app?.instance {
+            
+            var touchData: [[String : Any]] = []
+            for touch in touches {
+                let touchId = app!.getTouchId(touch: touch)
+                if touchId == -1 {
+                    continue
+                }
+                var location = touch.location(in: self)
+                if !self.layer.frame.contains(location) {
+                    continue
+                }
+                location.x -= self.windowLayer.frame.origin.x
+                location.y -= self.windowLayer.frame.origin.y
+                var prevLocation = touch.previousLocation(in: self)
+                if !self.layer.frame.contains(prevLocation) {
+                    continue
+                }
+                prevLocation.x -= self.windowLayer.frame.origin.x
+                prevLocation.y -= self.windowLayer.frame.origin.y
+                let alt = touch.altitudeAngle
+                let azim = touch.azimuthUnitVector(in: self)
+                let force = touch.force
+                let maximumPossibleForce = touch.maximumPossibleForce
+                touchData.append([ "touchId": touchId, "location": location, "prevLocation": prevLocation, "alt": alt, "azim": azim, "force": force, "maximumPossibleForce": maximumPossibleForce ])
+            }
+            
+            {
+                let windowId = subwindow?.getWindowId() ?? Int32(DisplayServer.mainWindowId)
+                for touch in touchData {
+                    let touchId = touch["touchId"] as! Int
+                    let location = touch["location"] as! CGPoint
+                    let prevLocation = touch["prevLocation"] as! CGPoint
+                    let alt = touch["alt"] as! CGFloat
+                    let azim = touch["azim"] as! CGVector
+                    let force = touch["force"] as! CGFloat
+                    let maximumPossibleForce = touch["maximumPossibleForce"] as! CGFloat
+                    (DisplayServer.shared as! DisplayServerEmbedded).touchDrag(idx: Int32(touchId), prevX: Int32(prevLocation.x  * contentsScale), prevY: Int32(prevLocation.y  * contentsScale), x: Int32(location.x * contentsScale), y: Int32(location.y * contentsScale), pressure: Double(force) / Double(maximumPossibleForce), tilt: Vector2(x: Float(azim.dx) * Float(cos(alt)), y: Float(azim.dy) * cos(Float(alt))), window: windowId)
+                }
+            }()
+        }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let contentsScale = windowLayer.contentsScale
+        if let instance = app?.instance {
+            
+            var touchData: [[String : Any]] = []
+            for touch in touches {
+                let touchId = app!.getTouchId(touch: touch)
+                if touchId == -1 {
+                    continue
+                }
+                app!.removeTouchId(id: touchId)
+                var location = touch.location(in: self)
+                if !self.layer.frame.contains(location) {
+                    continue
+                }
+                location.x -= self.windowLayer.frame.origin.x
+                location.y -= self.windowLayer.frame.origin.y
+                touchData.append([ "touchId": touchId, "location": location ])
+            }
+            
+            {
+                let windowId = subwindow?.getWindowId() ?? Int32(DisplayServer.mainWindowId)
+                for touch in touchData {
+                    let touchId = touch["touchId"] as! Int
+                    let location = touch["location"] as! CGPoint
+                    (DisplayServer.shared as! DisplayServerEmbedded).touchPress(idx: Int32(touchId), x: Int32(location.x * contentsScale), y: Int32(location.y * contentsScale), pressed: false, doubleClick: false, window: windowId)
+                }
+            }()
+        }
+    }
+    
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let instance = app?.instance {
+            
+            var touchData: [[String : Any]] = []
+            for touch in touches {
+                let touchId = app!.getTouchId(touch: touch)
+                if touchId == -1 {
+                    continue
+                }
+                app!.removeTouchId(id: touchId)
+                touchData.append([ "touchId": touchId ])
+            }
+
+            {
+                let windowId = subwindow?.getWindowId() ?? Int32(DisplayServer.mainWindowId)
+                for touch in touchData {
+                    let touchId = touch["touchId"] as! Int
+                    (DisplayServer.shared as! DisplayServerEmbedded).touchesCanceled(idx: Int32(touchId), window: windowId)
+                }
+            }()
+        }
+    }
+
     
     override func layoutSubviews() {
         windowLayer.frame = self.bounds
@@ -184,7 +476,7 @@ class UIGodotWindow : UIView {
             if embedded == nil {
                 embedded = DisplayServerEmbedded(nativeHandle: DisplayServer.shared.handle)
             }
-            embedded.resizeWindow(size: Vector2i(x: Int32(self.bounds.size.width), y: Int32(self.bounds.size.height)), id: subwindow.getWindowId())
+            embedded.resizeWindow(size: Vector2i(x: Int32(self.bounds.size.width * self.contentScaleFactor), y: Int32(self.bounds.size.height * self.contentScaleFactor)), id: subwindow.getWindowId())
         }
         super.layoutSubviews()
     }
@@ -248,17 +540,17 @@ struct ContentView: View {
             Text("Hello, world!")
             HStack {
                 GodotAppView()
-                VStack {
-                    GodotWindow(callback: windowCallback)
-                    GodotWindow(callback: windowCallback2)
-                    GodotWindow(callback: windowCallback3)
-                }
+//                VStack {
+//                    GodotWindow(callback: windowCallback)
+//                    GodotWindow(callback: windowCallback2)
+//                    GodotWindow(callback: windowCallback3)
+//                }
             }
         }
         .padding()
         .environmentObject(app)
         .onAppear(perform: {
-            app.createInstance(scene: "main.pck")
+            app.createInstance(scene: "game.pck")
         })
     }
 }  
