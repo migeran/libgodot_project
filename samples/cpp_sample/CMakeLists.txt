@@ -22,7 +22,11 @@ target_include_directories(${PROJECT_NAME} SYSTEM
 		${GODOT_CPP_DIR}/gen/include
 		${GODOT_CPP_DIR}/gdextension
 )
-target_link_libraries(${PROJECT_NAME} dl godot-cpp Threads::Threads)
+if (WIN32)
+    target_link_libraries(${PROJECT_NAME} godot-cpp Threads::Threads)
+else()
+    target_link_libraries(${PROJECT_NAME} dl godot-cpp Threads::Threads)
+endif (WIN32)
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
                    COMMAND ${CMAKE_COMMAND} -E copy
                        ${LIBGODOT_BUILD_DIR}/libgodot${CMAKE_SHARED_LIBRARY_SUFFIX}

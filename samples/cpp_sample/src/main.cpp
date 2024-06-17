@@ -1,6 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
+#if defined(__APPLE__) || defined(__unix__)
 #include <dlfcn.h>
+#elif defined(_WIN32)
+#include <windows.h>
+#endif
 #include <string>
 #include <vector>
 
@@ -13,8 +17,10 @@
 
 #ifdef __APPLE__
 #define LIBGODOT_LIBRARY_NAME "libgodot.dylib"
-#else
+#elif defined(__unix__)
 #define LIBGODOT_LIBRARY_NAME "./libgodot.so"
+#elif defined(_WIN32)
+#define LIBGODOT_LIBRARY_NAME "libgodot.dll"
 #endif
 
 extern "C" {
@@ -47,6 +53,7 @@ GDExtensionBool GDE_EXPORT gdextension_default_init(GDExtensionInterfaceGetProcA
 class LibGodot {
 public:
     LibGodot(std::string p_path = LIBGODOT_LIBRARY_NAME) {
+#if defined(__APPLE__) || defined(__unix__)
         handle = dlopen(p_path.c_str(), RTLD_LAZY);
         if (handle == nullptr) {
             fprintf(stderr, "Error opening libgodot: %s\n", dlerror());
@@ -66,16 +73,38 @@ public:
             handle == nullptr;
             return;
         }
+#elif defined(_WIN32)
+        LPCSTR libgodot_library_name = reinterpret_cast<LPCSTR>(LIBGODOT_LIBRARY_NAME);
+        handle = LoadLibrary(libgodot_library_name);
+        if (handle == NULL) {
+            fprintf(stderr, "Error opening libgodot: %lu\n", GetLastError());
+            return;
+        }
+        func_libgodot_create_godot_instance = (void *(*)(int, char **, GDExtensionInitializationFunction))GetProcAddress(handle, "gdextension_create_godot_instance");
+        if (func_libgodot_create_godot_instance == NULL) {
+            fprintf(stderr, "Error acquiring function: %lu\n", GetLastError());
+            FreeLibrary(handle);
+            return;
+        }
+#endif
     }
 
     ~LibGodot() {
         if (is_open()) {
+#if defined(__APPLE__) || defined(__unix__)
             dlclose(handle);
+#elif defined(_WIN32)
+            FreeLibrary(handle);
+#endif
         }
     }
 
     bool is_open() {
+#if defined(__APPLE__) || defined(__unix__)
         return handle != nullptr && func_libgodot_create_godot_instance != nullptr;
+#elif defined(_WIN32)
+        return handle != NULL && func_libgodot_create_godot_instance != NULL;
+#endif
     }
 
     godot::GodotInstance *create_godot_instance(int p_argc, char *p_argv[], GDExtensionInitializationFunction p_init_func = gdextension_default_init) {
@@ -95,9 +124,15 @@ public:
     }
 
 private:
+#if defined(__APPLE__) || defined(__unix__)
     void *handle = nullptr;
     GDExtensionObjectPtr (*func_libgodot_create_godot_instance)(int, char *[], GDExtensionInitializationFunction) = nullptr;
     void (*func_libgodot_destroy_godot_instance)(GDExtensionObjectPtr) = nullptr;
+#elif defined(_WIN32)
+    HINSTANCE handle = NULL;
+    GDExtensionObjectPtr (*func_libgodot_create_godot_instance)(int, char *[], GDExtensionInitializationFunction) = NULL;
+    void (*func_libgodot_destroy_godot_instance)(GDExtensionObjectPtr) = NULL;
+#endif
 };
 
 int main(int argc, char **argv) {
