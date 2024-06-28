@@ -102,12 +102,13 @@ target_godot_suffix="$target_platform.$target"
 
 if [ $debug -eq 1 ]
 then
-    target_build_options="$target_build_options dev_build=yes"
-    target_godot_suffix="$target_godot_suffix.dev"
     if [ "$target_platform" = "ios" ]
     then
         target="template_debug"
+        target_godot_suffix="$target_platform.$target"
     fi
+    target_build_options="$target_build_options dev_build=yes"
+    target_godot_suffix="$target_godot_suffix.dev"
 fi
 
 target_godot_suffix="$target_godot_suffix.$target_arch"
