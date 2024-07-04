@@ -22,6 +22,7 @@ host_debug=1
 debug=1
 force_host_rebuild=0
 update_api=0
+simulator=0
 
 case "$host_system" in
     Linux)
@@ -68,6 +69,9 @@ do
             shift
             target_platform="${1:-}"
         ;;
+        --simulator)
+            simulator=1
+        ;;
         *)
             echo "Usage: $0 [--host-debug] [--host-rebuild] [--host-debug] [--host-release] [--debug] [--release] [--update-api] [--target <target platform>]"
             exit 1
@@ -81,6 +85,11 @@ then
     target_arch="arm64"
     target="template_release"
     lib_suffix="a"
+    if [ $simulator -eq 1 ]
+    then
+        target_build_options="$target_build_options ios_simulator=true"
+        target_arch="$host_arch"
+    fi
 fi
 
 if [ "$target_arch" = "" ]
@@ -134,17 +143,17 @@ then
     cp -v $GODOT_DIR/core/extension/libgodot.h $GODOT_CPP_DIR/gdextension/
     cp -v $BUILD_DIR/extension_api.json $SWIFT_GODOT_DIR/Sources/ExtensionApi/
     cp -v $GODOT_DIR/core/extension/gdextension_interface.h $SWIFT_GODOT_DIR/Sources/GDExtension/include/
-    cp -v $GODOT_DIR/core/extension/libgodot.h $SWIFT_GODOT_DIR/Sources/GDExtension/include/
 
     echo "Successfully updated the GDExtension API."
     exit 0
 fi
 
 cd $GODOT_DIR
-scons p=$target_platform target=$target $target_build_options library_type=shared_library
-cp -v $target_godot $BUILD_DIR/libgodot.$lib_suffix
+scons p=$target_platform target=$target arch=$target_arch $target_build_options library_type=shared_library
 
 if [ "$target_platform" = "ios" ]
 then
-    $SWIFT_GODOT_DIR/scripts/make-libgodot.framework $GODOT_DIR $BUILD_DIR $target
+    $SWIFT_GODOT_KIT_DIR/scripts/make-libgodot.framework $GODOT_DIR $BUILD_DIR $target
+else
+    cp -v $target_godot $BUILD_DIR/libgodot.$lib_suffix
 fi
